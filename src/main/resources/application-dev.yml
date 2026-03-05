@@ -1,0 +1,16 @@
+server:
+  port: 20181
+
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: ${SENSOR_DB_URL}
+    username: ${SENSOR_DB_USERNAME}
+    password: ${SENSOR_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+sensor:
+  mqtt:
+    enabled: ${SENSOR_MQTT_ENABLED:true}

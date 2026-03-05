@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: zeroq-back-sensor
+  profiles:
+    active: local
+    group:
+      local: local
+      test: test
+      dev: dev
+      prod: prod
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 50
+  jackson:
+    serialization:
+      FAIL_ON_EMPTY_BEANS: false
+    default-property-inclusion: non_null
+  cloud:
+    discovery:
+      enabled: true
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
+    registerWithEureka: true
+    fetchRegistry: true
+  instance:
+    preferIpAddress: true
+    hostname: localhost
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+sensor:
+  cors:
+    allowed-origins: ${SENSOR_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001}
+  ingestion:
+    stale-threshold-seconds: 180
+    lookback-seconds: 300
+    min-distance-cm: 2.0
+    max-distance-cm: 400.0
+    default-occupancy-threshold-cm: 120.0
+    auto-register-unknown-sensor: false
+  mqtt:
+    enabled: false
+    broker-uri: ${SENSOR_MQTT_BROKER_URI:tcp://localhost:1883}
+    client-id: ${SENSOR_MQTT_CLIENT_ID:zeroq-sensor-server}
+    username: ${SENSOR_MQTT_USERNAME:}
+    password: ${SENSOR_MQTT_PASSWORD:}
+    qos: 1
+    telemetry-topic: ${SENSOR_MQTT_TELEMETRY_TOPIC:zeroq/sensor/+/telemetry}
+    heartbeat-topic: ${SENSOR_MQTT_HEARTBEAT_TOPIC:zeroq/sensor/+/heartbeat}
+    command-ack-topic: ${SENSOR_MQTT_COMMAND_ACK_TOPIC:zeroq/sensor/+/command-ack}
+    command-topic-pattern: ${SENSOR_MQTT_COMMAND_TOPIC_PATTERN:zeroq/sensor/{sensorId}/command}
