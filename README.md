@@ -1,71 +1,64 @@
 # zeroq-back-sensor
 
-ZeroQ 오프라인 센서(ESP32/Gateway/MQTT) 데이터 수집 서버입니다.
+ZeroQ 센서 수집 및 제어 서버입니다. HTTP와 MQTT를 통해 센서 데이터를 받아 정제하고, 명령 생성/전송/ACK, 스냅샷 집계, 데드레터 관리를 수행합니다.
 
 ## 역할
-- 오프라인 기계 센서 텔레메트리/하트비트 수집
-- 데이터 품질 판정(VALID/OUTLIER/STALE/DUPLICATE)
-- 장소 단위 스냅샷 집계(`place_occupancy_snapshot`)
-- 센서 제어 명령 생성/전송/ACK 처리
-- 수집 실패 데이터 데드레터 관리
 
-## 아키텍처 포인트
-- 모든 외부 API는 Gateway 경유 전제 (`/api/zeroq/v1/sensor/**`)
-- 센서 실시간 수집은 HTTP + MQTT 인바운드 모두 지원
-- 명령 전송은 MQTT 아웃바운드 사용
-- 센서 운영 API는 `X-User-Role` 기준 `MANAGER`/`ADMIN`만 허용
+- 센서 장치 등록과 설치 상태 관리
+- telemetry, heartbeat, batch ingest 처리
+- 품질 판정과 장소 스냅샷 집계
+- 센서 명령 생성, MQTT dispatch, ACK 반영
+- dead-letter 조회와 최근 수집 모니터링
 
-## 기본 포트
-- `local/dev`: `20181`
-- `prod`: `10181`
-- `test`: `30181`
+## API 베이스 경로
 
-## 주요 API
-- `POST /api/zeroq/v1/sensor/devices` 센서 등록
-- `PUT /api/zeroq/v1/sensor/devices/{sensorId}/install` 설치 정보 반영
-- `PATCH /api/zeroq/v1/sensor/devices/{sensorId}/status` 센서 상태 변경
-- `POST /api/zeroq/v1/sensor/ingest/telemetry` 텔레메트리 수집
-- `POST /api/zeroq/v1/sensor/ingest/heartbeat` 하트비트 수집
-- `POST /api/zeroq/v1/sensor/ingest/batch` 게이트웨이 배치 수집
-- `POST /api/zeroq/v1/sensor/commands` 센서 명령 생성
-- `POST /api/zeroq/v1/sensor/commands/{commandId}/dispatch` 명령 MQTT 전송
-- `PATCH /api/zeroq/v1/sensor/commands/{commandId}/ack` 명령 ACK 반영
-- `GET /api/zeroq/v1/sensor/monitoring/places/{placeId}/snapshot` 스냅샷 조회
-- `GET /api/zeroq/v1/sensor/monitoring/dead-letters` 실패 메시지 조회
+- `/api/zeroq/v1/sensor/devices`
+- `/api/zeroq/v1/sensor/ingest`
+- `/api/zeroq/v1/sensor/commands`
+- `/api/zeroq/v1/sensor/monitoring`
 
-## MQTT 토픽
-- 텔레메트리 수신: `zeroq/sensor/+/telemetry`
-- 하트비트 수신: `zeroq/sensor/+/heartbeat`
-- 명령 ACK 수신: `zeroq/sensor/+/command-ack`
-- 명령 발행: `zeroq/sensor/{sensorId}/command`
+## MQTT
 
-## 로그
-- `logback-spring.xml` 적용
-- 커스텀 클래스:
-  - `com.zeroq.sensor.common.logback.PrintOnlyWarningLogbackStatusListener`
-  - `com.zeroq.sensor.common.logback.filter.CustomLogbackFilter`
-- 프로파일별 경로:
-  - local/test: `./logs`
-  - dev: `/data/logs/dev/zeroq_back_sensor`
-  - prod: `/data/logs/prod/zeroq_back_sensor`
+- telemetry: `zeroq/sensor/+/telemetry`
+- heartbeat: `zeroq/sensor/+/heartbeat`
+- command ack: `zeroq/sensor/+/command-ack`
+- command publish pattern: `zeroq/sensor/{sensorId}/command`
 
-## 수집 안전장치
-- 배치 수집은 항목별 독립 트랜잭션으로 처리(부분 성공 보장)
-- 설치된 센서 `placeId`와 요청 `placeId` 불일치 시 수집 거부
-- 중복 판정은 `sensorId + sequenceNo + measuredAt` 기준
+## 실행 프로필과 포트
 
-## DB 스크립트
-- DDL: `src/main/resources/db/ddl/zeroq_sensor_all.sql`
-- 리셋: `src/main/resources/db/ddl/zeroq_sensor_data_reset.sql`
-- Seed: `src/main/resources/db/seed/zeroq_sensor_seed.sql`
+| Profile | Port |
+|---|---:|
+| `local` | `20181` |
+| `dev` | `20181` |
+| `prod` | `10181` |
+| `test` | `30181` |
 
-## 실행
+## 실행과 검증
+
 ```bash
 ./gradlew :zeroq-back-sensor:bootRun
-```
-
-## 빌드/테스트
-```bash
+./gradlew :zeroq-back-sensor:bootRun --args='--spring.profiles.active=local'
 ./gradlew :zeroq-back-sensor:compileJava
 ./gradlew :zeroq-back-sensor:test
 ```
+
+## 핵심 설정
+
+- DB: `SENSOR_DB_URL`, `SENSOR_DB_USERNAME`, `SENSOR_DB_PASSWORD`
+- MQTT 사용 여부: `SENSOR_MQTT_ENABLED`
+- MQTT broker: `SENSOR_MQTT_BROKER_URI`
+- CORS: `SENSOR_CORS_ALLOWED_ORIGINS`
+
+## 데이터와 로그
+
+- DDL: `src/main/resources/db/ddl/zeroq_sensor_all.sql`
+- 리셋: `src/main/resources/db/ddl/zeroq_sensor_data_reset.sql`
+- 시드: `src/main/resources/db/seed/zeroq_sensor_seed.sql`
+- 로그 설정: `src/main/resources/logback-spring.xml`
+- 로그 경로: local/test `./logs`, dev `/data/logs/dev/zeroq_back_sensor`, prod `/data/logs/prod/zeroq_back_sensor`
+
+## 참고
+
+- 운영 API는 `MANAGER`/`ADMIN` 권한 전제를 둡니다.
+- 배치 수집은 항목별 독립 트랜잭션으로 처리됩니다.
+- 현재 테스트는 존재하지만 전반적으로 얕은 편이라 핵심 로직 변경 시 회귀 테스트 보강이 필요합니다.
