@@ -5,22 +5,40 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Component
 public class SensorRoleGuard {
     private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final Set<String> MANAGER_OR_ADMIN = Set.of("MANAGER", "ADMIN");
+    private static final Set<String> AUTHENTICATED_ROLES = Set.of("USER", "MANAGER", "ADMIN");
+    private static final Map<String, String> ROLE_PREFIX_ALIASES = Map.of(
+            "ROLE_USER", "USER",
+            "ROLE_MANAGER", "MANAGER",
+            "ROLE_ADMIN", "ADMIN"
+    );
 
     public void requireManagerOrAdmin(HttpServletRequest request) {
-        String role = request.getHeader(USER_ROLE_HEADER);
+        String normalizedRole = normalizeRole(request.getHeader(USER_ROLE_HEADER));
+        if (!MANAGER_OR_ADMIN.contains(normalizedRole)) {
+            throw new SensorException.ForbiddenException("Required role: MANAGER or ADMIN");
+        }
+    }
+
+    public void requireAuthenticatedRole(HttpServletRequest request) {
+        String normalizedRole = normalizeRole(request.getHeader(USER_ROLE_HEADER));
+        if (!AUTHENTICATED_ROLES.contains(normalizedRole)) {
+            throw new SensorException.ForbiddenException("Required role: USER, MANAGER, or ADMIN");
+        }
+    }
+
+    private String normalizeRole(String role) {
         if (role == null || role.isBlank()) {
             throw new SensorException.ForbiddenException("Missing X-User-Role header");
         }
 
         String normalizedRole = role.toUpperCase(Locale.ROOT).trim();
-        if (!MANAGER_OR_ADMIN.contains(normalizedRole)) {
-            throw new SensorException.ForbiddenException("Required role: MANAGER or ADMIN");
-        }
+        return ROLE_PREFIX_ALIASES.getOrDefault(normalizedRole, normalizedRole);
     }
 }

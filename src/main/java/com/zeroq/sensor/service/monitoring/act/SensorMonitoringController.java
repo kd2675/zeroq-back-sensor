@@ -32,6 +32,19 @@ public class SensorMonitoringController {
         );
     }
 
+    @GetMapping("/places/{placeId}/snapshot/public")
+    public ResponseDataDTO<PlaceSnapshotResponse> getPlaceSnapshotForAuthenticatedUser(
+            @PathVariable Long placeId,
+            @RequestParam(defaultValue = "false") boolean recalculate,
+            HttpServletRequest httpServletRequest
+    ) {
+        sensorRoleGuard.requireAuthenticatedRole(httpServletRequest);
+        return ResponseDataDTO.of(
+                sensorMonitoringService.getPlaceSnapshot(placeId, recalculate),
+                "사용자 공개 스냅샷 조회 완료"
+        );
+    }
+
     @GetMapping("/places/{placeId}/telemetry/recent")
     public ResponseDataDTO<List<RecentTelemetryResponse>> getRecentTelemetry(
             @PathVariable Long placeId,
