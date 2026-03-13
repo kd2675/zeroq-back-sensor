@@ -26,7 +26,7 @@ public class SensorCommandResponse {
     public static SensorCommandResponse from(SensorCommand command) {
         return SensorCommandResponse.builder()
                 .id(command.getId())
-                .sensorId(command.getSensorDevice().getSensorId())
+                .sensorId(command.getSensorId())
                 .commandType(command.getCommandType())
                 .status(command.getStatus())
                 .commandPayload(command.getCommandPayload())

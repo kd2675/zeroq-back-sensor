@@ -12,17 +12,26 @@ import java.util.Set;
 public class SensorRoleGuard {
     private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final Set<String> MANAGER_OR_ADMIN = Set.of("MANAGER", "ADMIN");
-    private static final Set<String> AUTHENTICATED_ROLES = Set.of("USER", "MANAGER", "ADMIN");
+    private static final Set<String> GATEWAY_OR_MANAGER_OR_ADMIN = Set.of("GATEWAY", "MANAGER", "ADMIN");
+    private static final Set<String> AUTHENTICATED_ROLES = Set.of("USER", "MANAGER", "ADMIN", "GATEWAY");
     private static final Map<String, String> ROLE_PREFIX_ALIASES = Map.of(
             "ROLE_USER", "USER",
             "ROLE_MANAGER", "MANAGER",
-            "ROLE_ADMIN", "ADMIN"
+            "ROLE_ADMIN", "ADMIN",
+            "ROLE_GATEWAY", "GATEWAY"
     );
 
     public void requireManagerOrAdmin(HttpServletRequest request) {
         String normalizedRole = normalizeRole(request.getHeader(USER_ROLE_HEADER));
         if (!MANAGER_OR_ADMIN.contains(normalizedRole)) {
             throw new SensorException.ForbiddenException("Required role: MANAGER or ADMIN");
+        }
+    }
+
+    public void requireGatewayOrManagerOrAdmin(HttpServletRequest request) {
+        String normalizedRole = normalizeRole(request.getHeader(USER_ROLE_HEADER));
+        if (!GATEWAY_OR_MANAGER_OR_ADMIN.contains(normalizedRole)) {
+            throw new SensorException.ForbiddenException("Required role: GATEWAY, MANAGER, or ADMIN");
         }
     }
 

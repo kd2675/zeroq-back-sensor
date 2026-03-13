@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 public class IngestTelemetryResponse {
     private Long telemetryId;
     private String sensorId;
-    private Long placeId;
     private TelemetryQualityStatus qualityStatus;
     private boolean occupied;
     private boolean duplicate;

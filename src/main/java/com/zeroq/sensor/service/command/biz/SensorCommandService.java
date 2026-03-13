@@ -8,7 +8,6 @@ import com.zeroq.sensor.service.command.vo.AckSensorCommandRequest;
 import com.zeroq.sensor.service.command.vo.CreateSensorCommandRequest;
 import com.zeroq.sensor.service.command.vo.SensorCommandDispatchMessage;
 import com.zeroq.sensor.service.command.vo.SensorCommandResponse;
-import com.zeroq.sensor.service.device.biz.SensorDeviceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -27,14 +26,13 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class SensorCommandService {
     private final SensorCommandRepository sensorCommandRepository;
-    private final SensorDeviceService sensorDeviceService;
     private final ObjectProvider<SensorCommandDispatchGateway> dispatchGatewayProvider;
     private final SensorCommandFailureService sensorCommandFailureService;
 
     @Transactional
     public SensorCommandResponse createCommand(CreateSensorCommandRequest request) {
         SensorCommand command = SensorCommand.builder()
-                .sensorDevice(sensorDeviceService.findEntityBySensorId(request.getSensorId()))
+                .sensorId(request.getSensorId().trim())
                 .commandType(request.getCommandType())
                 .commandPayload(request.getCommandPayload())
                 .requestedBy(request.getRequestedBy())
@@ -45,7 +43,7 @@ public class SensorCommandService {
         SensorCommand saved = sensorCommandRepository.save(command);
         log.info("Sensor command created: commandId={}, sensorId={}, type={}",
                 saved.getId(),
-                saved.getSensorDevice().getSensorId(),
+                saved.getSensorId(),
                 saved.getCommandType());
         return SensorCommandResponse.from(saved);
     }
@@ -87,7 +85,7 @@ public class SensorCommandService {
 
         log.info("Sensor command dispatched: commandId={}, sensorId={}",
                 saved.getId(),
-                saved.getSensorDevice().getSensorId());
+                saved.getSensorId());
         return SensorCommandResponse.from(saved);
     }
 
@@ -132,7 +130,7 @@ public class SensorCommandService {
     @Transactional
     public List<SensorCommandResponse> getPendingCommands(String sensorId, boolean markAsSent) {
         List<SensorCommand> commands = sensorCommandRepository
-                .findAllBySensorDeviceSensorIdAndStatusInOrderByRequestedAtAsc(
+                .findAllBySensorIdAndStatusInOrderByRequestedAtAsc(
                         sensorId,
                         EnumSet.of(SensorCommandStatus.PENDING, SensorCommandStatus.SENT)
                 );

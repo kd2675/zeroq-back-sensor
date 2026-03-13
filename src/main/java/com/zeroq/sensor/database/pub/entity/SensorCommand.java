@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "sensor_command", indexes = {
-        @Index(name = "idx_sensor_command_sensor_status", columnList = "sensor_device_id,status"),
+        @Index(name = "idx_sensor_command_sensor_status", columnList = "sensor_id,status"),
         @Index(name = "idx_sensor_command_requested", columnList = "requested_at")
 })
 @Getter
@@ -21,9 +21,8 @@ public class SensorCommand extends CommonDateEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sensor_device_id", nullable = false)
-    private SensorDevice sensorDevice;
+    @Column(name = "sensor_id", nullable = false, length = 50)
+    private String sensorId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "command_type", nullable = false, length = 30)

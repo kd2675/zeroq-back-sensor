@@ -7,8 +7,8 @@ import java.time.LocalDateTime;
 
 @Getter
 @Builder
-public class IngestHeartbeatResponse {
-    private String sensorId;
-    private double batteryPercent;
+public class IngestGatewayStatusResponse {
+    private String gatewayId;
+    private String status;
     private LocalDateTime heartbeatAt;
 }

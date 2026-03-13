@@ -19,7 +19,7 @@ public class SensorCommandDispatchMessage {
     public static SensorCommandDispatchMessage from(SensorCommand command) {
         return SensorCommandDispatchMessage.builder()
                 .commandId(command.getId())
-                .sensorId(command.getSensorDevice().getSensorId())
+                .sensorId(command.getSensorId())
                 .commandType(command.getCommandType())
                 .requestedAt(command.getRequestedAt())
                 .commandPayload(command.getCommandPayload())

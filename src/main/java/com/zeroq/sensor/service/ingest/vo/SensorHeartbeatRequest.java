@@ -16,5 +16,4 @@ public class SensorHeartbeatRequest {
     private String firmwareVersion;
     private Double batteryPercent;
     private String gatewayId;
-    private Long placeId;
 }

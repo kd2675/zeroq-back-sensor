@@ -8,11 +8,10 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "sensor_telemetry", indexes = {
-        @Index(name = "idx_sensor_telemetry_sensor_measured", columnList = "sensor_device_id,measured_at"),
-        @Index(name = "idx_sensor_telemetry_place_measured", columnList = "place_id,measured_at"),
+        @Index(name = "idx_sensor_telemetry_sensor_measured", columnList = "sensor_id,measured_at"),
         @Index(name = "idx_sensor_telemetry_quality", columnList = "quality_status")
 }, uniqueConstraints = {
-        @UniqueConstraint(name = "uk_sensor_telemetry_sensor_sequence_measured", columnNames = {"sensor_device_id", "sequence_no", "measured_at"})
+        @UniqueConstraint(name = "uk_sensor_telemetry_sensor_sequence_measured", columnNames = {"sensor_id", "sequence_no", "measured_at"})
 })
 @Getter
 @Setter
@@ -24,18 +23,11 @@ public class SensorTelemetry extends CommonDateEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sensor_device_id", nullable = false)
-    private SensorDevice sensorDevice;
+    @Column(name = "sensor_id", nullable = false, length = 50)
+    private String sensorId;
 
     @Column(name = "sequence_no")
     private Long sequenceNo;
-
-    @Column(name = "place_id")
-    private Long placeId;
-
-    @Column(name = "gateway_id", length = 50)
-    private String gatewayId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "source_type", nullable = false, length = 20)
@@ -47,11 +39,17 @@ public class SensorTelemetry extends CommonDateEntity {
     @Column(name = "received_at", nullable = false)
     private LocalDateTime receivedAt;
 
-    @Column(name = "distance_cm", nullable = false)
-    private double distanceCm;
+    @Column(name = "distance_cm")
+    private Double distanceCm;
 
     @Column(name = "occupied", nullable = false)
     private boolean occupied;
+
+    @Column(name = "pad_left_value")
+    private Integer padLeftValue;
+
+    @Column(name = "pad_right_value")
+    private Integer padRightValue;
 
     @Column(name = "confidence")
     private Double confidence;

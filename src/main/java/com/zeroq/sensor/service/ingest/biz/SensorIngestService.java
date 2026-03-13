@@ -3,8 +3,8 @@ package com.zeroq.sensor.service.ingest.biz;
 import com.zeroq.sensor.common.config.SensorIngestionProperties;
 import com.zeroq.sensor.common.exception.SensorException;
 import com.zeroq.sensor.database.pub.entity.*;
+import com.zeroq.sensor.database.pub.repository.SensorHeartbeatRepository;
 import com.zeroq.sensor.database.pub.repository.SensorTelemetryRepository;
-import com.zeroq.sensor.service.device.biz.SensorDeviceService;
 import com.zeroq.sensor.service.ingest.vo.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,25 +21,22 @@ import java.time.LocalDateTime;
 @Service
 @Transactional(readOnly = true)
 public class SensorIngestService {
-    private final SensorDeviceService sensorDeviceService;
     private final SensorTelemetryRepository sensorTelemetryRepository;
+    private final SensorHeartbeatRepository sensorHeartbeatRepository;
     private final SensorDeadLetterService sensorDeadLetterService;
-    private final SnapshotAggregationService snapshotAggregationService;
     private final SensorIngestionProperties ingestionProperties;
     private final TransactionTemplate requiresNewTransactionTemplate;
 
     public SensorIngestService(
-            SensorDeviceService sensorDeviceService,
             SensorTelemetryRepository sensorTelemetryRepository,
+            SensorHeartbeatRepository sensorHeartbeatRepository,
             SensorDeadLetterService sensorDeadLetterService,
-            SnapshotAggregationService snapshotAggregationService,
             SensorIngestionProperties ingestionProperties,
             PlatformTransactionManager transactionManager
     ) {
-        this.sensorDeviceService = sensorDeviceService;
         this.sensorTelemetryRepository = sensorTelemetryRepository;
+        this.sensorHeartbeatRepository = sensorHeartbeatRepository;
         this.sensorDeadLetterService = sensorDeadLetterService;
-        this.snapshotAggregationService = snapshotAggregationService;
         this.ingestionProperties = ingestionProperties;
 
         this.requiresNewTransactionTemplate = new TransactionTemplate(transactionManager);
@@ -52,31 +49,33 @@ public class SensorIngestService {
             TelemetrySourceType sourceType,
             String sourceTopic
     ) {
-        SensorDevice sensorDevice = resolveSensorDevice(request.getSensorId(), sourceType, sourceTopic, request.getRawPayload());
-        Long resolvedPlaceId = resolvePlaceId(sensorDevice, request.getPlaceId());
-
-        if (sensorDevice.getPlaceId() == null) {
-            sensorDevice.setPlaceId(resolvedPlaceId);
-        }
-
-        TelemetryQualityStatus qualityStatus = determineQuality(sensorDevice, request);
+        String sensorId = request.getSensorId().trim();
+        TelemetryQualityStatus qualityStatus = determineQuality(sensorId, request);
         if (qualityStatus == TelemetryQualityStatus.DUPLICATE) {
-            return buildDuplicateResponse(sensorDevice, request, resolvedPlaceId);
+            return buildDuplicateResponse(sensorId, request);
         }
 
-        double adjustedDistance = request.getDistanceCm() + sensorDevice.getCalibrationOffsetCm();
-        boolean occupied = adjustedDistance <= sensorDevice.getOccupancyThresholdCm();
+        Boolean explicitOccupied = request.getOccupied();
+        Double distanceCm = request.getDistanceCm();
+        boolean occupied;
+        if (explicitOccupied != null) {
+            occupied = explicitOccupied;
+        } else if (distanceCm != null) {
+            occupied = distanceCm <= ingestionProperties.getDefaultOccupancyThresholdCm();
+        } else {
+            throw new SensorException.ValidationException("Either distanceCm or occupied is required");
+        }
 
         SensorTelemetry telemetry = SensorTelemetry.builder()
-                .sensorDevice(sensorDevice)
+                .sensorId(sensorId)
                 .sequenceNo(request.getSequenceNo())
-                .placeId(resolvedPlaceId)
-                .gatewayId(resolveGatewayId(request.getGatewayId()))
                 .sourceType(sourceType)
                 .measuredAt(request.getMeasuredAt())
                 .receivedAt(LocalDateTime.now())
-                .distanceCm(request.getDistanceCm())
+                .distanceCm(distanceCm)
                 .occupied(occupied)
+                .padLeftValue(request.getPadLeftValue())
+                .padRightValue(request.getPadRightValue())
                 .confidence(request.getConfidence())
                 .temperatureC(request.getTemperatureC())
                 .humidityPercent(request.getHumidityPercent())
@@ -86,19 +85,11 @@ public class SensorIngestService {
                 .rawPayload(request.getRawPayload())
                 .build();
 
-        SensorTelemetry saved = saveTelemetryWithRaceHandling(sensorDevice, request, telemetry);
-
-        sensorDevice.markTelemetry(request.getSequenceNo(), request.getBatteryPercent(), request.getMeasuredAt());
-        sensorDeviceService.saveEntity(sensorDevice);
-
-        if (qualityStatus == TelemetryQualityStatus.VALID) {
-            snapshotAggregationService.recalculateIfPossible(saved.getPlaceId());
-        }
+        SensorTelemetry saved = saveTelemetryWithRaceHandling(sensorId, request, telemetry);
 
         return IngestTelemetryResponse.builder()
                 .telemetryId(saved.getId())
-                .sensorId(sensorDevice.getSensorId())
-                .placeId(saved.getPlaceId())
+                .sensorId(sensorId)
                 .qualityStatus(saved.getQualityStatus())
                 .occupied(saved.isOccupied())
                 .duplicate(false)
@@ -112,18 +103,21 @@ public class SensorIngestService {
             TelemetrySourceType sourceType,
             String sourceTopic
     ) {
-        SensorDevice sensorDevice = resolveSensorDevice(request.getSensorId(), sourceType, sourceTopic, null);
-        validateAndApplyHeartbeatPlaceId(sensorDevice, request.getPlaceId());
-
+        String sensorId = request.getSensorId().trim();
         LocalDateTime heartbeatAt = request.getHeartbeatAt() == null ? LocalDateTime.now() : request.getHeartbeatAt();
-        sensorDevice.markHeartbeat(heartbeatAt, request.getBatteryPercent(), request.getFirmwareVersion());
-        SensorDevice saved = sensorDeviceService.saveEntity(sensorDevice);
+        SensorHeartbeat saved = sensorHeartbeatRepository.save(SensorHeartbeat.builder()
+                .sensorId(sensorId)
+                .sourceType(sourceType)
+                .heartbeatAt(heartbeatAt)
+                .receivedAt(LocalDateTime.now())
+                .firmwareVersion(request.getFirmwareVersion())
+                .batteryPercent(request.getBatteryPercent())
+                .build());
 
         return IngestHeartbeatResponse.builder()
                 .sensorId(saved.getSensorId())
-                .placeId(saved.getPlaceId())
                 .batteryPercent(saved.getBatteryPercent())
-                .heartbeatAt(saved.getLastHeartbeatAt())
+                .heartbeatAt(saved.getHeartbeatAt())
                 .build();
     }
 
@@ -193,7 +187,7 @@ public class SensorIngestService {
     }
 
     private SensorTelemetry saveTelemetryWithRaceHandling(
-            SensorDevice sensorDevice,
+            String sensorId,
             SensorTelemetryRequest request,
             SensorTelemetry telemetry
     ) {
@@ -202,24 +196,19 @@ public class SensorIngestService {
         } catch (DataIntegrityViolationException ex) {
             if (request.getSequenceNo() != null) {
                 return sensorTelemetryRepository
-                        .findBySensorDeviceAndSequenceNoAndMeasuredAt(sensorDevice, request.getSequenceNo(), request.getMeasuredAt())
+                        .findBySensorIdAndSequenceNoAndMeasuredAt(sensorId, request.getSequenceNo(), request.getMeasuredAt())
                         .orElseThrow(() -> ex);
             }
             throw ex;
         }
     }
 
-    private IngestTelemetryResponse buildDuplicateResponse(
-            SensorDevice sensorDevice,
-            SensorTelemetryRequest request,
-            Long placeId
-    ) {
+    private IngestTelemetryResponse buildDuplicateResponse(String sensorId, SensorTelemetryRequest request) {
         return sensorTelemetryRepository
-                .findBySensorDeviceAndSequenceNoAndMeasuredAt(sensorDevice, request.getSequenceNo(), request.getMeasuredAt())
+                .findBySensorIdAndSequenceNoAndMeasuredAt(sensorId, request.getSequenceNo(), request.getMeasuredAt())
                 .map(existing -> IngestTelemetryResponse.builder()
                         .telemetryId(existing.getId())
-                        .sensorId(sensorDevice.getSensorId())
-                        .placeId(existing.getPlaceId())
+                        .sensorId(sensorId)
                         .qualityStatus(TelemetryQualityStatus.DUPLICATE)
                         .occupied(existing.isOccupied())
                         .duplicate(true)
@@ -227,8 +216,7 @@ public class SensorIngestService {
                         .build())
                 .orElseGet(() -> IngestTelemetryResponse.builder()
                         .telemetryId(null)
-                        .sensorId(sensorDevice.getSensorId())
-                        .placeId(placeId)
+                        .sensorId(sensorId)
                         .qualityStatus(TelemetryQualityStatus.DUPLICATE)
                         .occupied(false)
                         .duplicate(true)
@@ -236,18 +224,23 @@ public class SensorIngestService {
                         .build());
     }
 
-    private TelemetryQualityStatus determineQuality(SensorDevice sensorDevice, SensorTelemetryRequest request) {
+    private TelemetryQualityStatus determineQuality(String sensorId, SensorTelemetryRequest request) {
         if (request.getSequenceNo() != null &&
-                sensorTelemetryRepository.existsBySensorDeviceAndSequenceNoAndMeasuredAt(
-                        sensorDevice,
+                sensorTelemetryRepository.existsBySensorIdAndSequenceNoAndMeasuredAt(
+                        sensorId,
                         request.getSequenceNo(),
                         request.getMeasuredAt()
                 )) {
             return TelemetryQualityStatus.DUPLICATE;
         }
 
-        if (request.getDistanceCm() < ingestionProperties.getMinDistanceCm() ||
-                request.getDistanceCm() > ingestionProperties.getMaxDistanceCm()) {
+        if (request.getDistanceCm() == null && request.getOccupied() == null) {
+            throw new SensorException.ValidationException("Either distanceCm or occupied is required");
+        }
+
+        if (request.getDistanceCm() != null &&
+                (request.getDistanceCm() < ingestionProperties.getMinDistanceCm() ||
+                        request.getDistanceCm() > ingestionProperties.getMaxDistanceCm())) {
             return TelemetryQualityStatus.OUTLIER;
         }
 
@@ -257,87 +250,6 @@ public class SensorIngestService {
         }
 
         return TelemetryQualityStatus.VALID;
-    }
-
-    private SensorDevice resolveSensorDevice(
-            String sensorId,
-            TelemetrySourceType sourceType,
-            String sourceTopic,
-            String payload
-    ) {
-        try {
-            return sensorDeviceService.findEntityBySensorId(sensorId);
-        } catch (SensorException.ResourceNotFoundException ex) {
-            if (!ingestionProperties.isAutoRegisterUnknownSensor()) {
-                sensorDeadLetterService.saveDeadLetter(
-                        sourceType,
-                        sourceTopic,
-                        sensorId,
-                        payload,
-                        "UNKNOWN_SENSOR",
-                        ex.getMessage()
-                );
-                throw ex;
-            }
-
-            SensorDevice autoRegistered = SensorDevice.builder()
-                    .sensorId(sensorId)
-                    .macAddress(buildAutoMacAddress(sensorId))
-                    .model("AUTO_REGISTERED")
-                    .type(SensorType.OCCUPANCY_DETECTION)
-                    .protocol(sourceType == TelemetrySourceType.MQTT ? SensorProtocol.MQTT : SensorProtocol.HTTP)
-                    .status(SensorStatus.ACTIVE)
-                    .occupancyThresholdCm(ingestionProperties.getDefaultOccupancyThresholdCm())
-                    .build();
-            return sensorDeviceService.saveEntity(autoRegistered);
-        }
-    }
-
-    private Long resolvePlaceId(SensorDevice sensorDevice, Long placeIdFromRequest) {
-        Long installedPlaceId = sensorDevice.getPlaceId();
-
-        if (installedPlaceId != null) {
-            if (placeIdFromRequest != null && !installedPlaceId.equals(placeIdFromRequest)) {
-                throw new SensorException.ValidationException(
-                        "Telemetry placeId mismatch. installedPlaceId=" + installedPlaceId + ", requestPlaceId=" + placeIdFromRequest
-                );
-            }
-            return installedPlaceId;
-        }
-
-        if (placeIdFromRequest == null) {
-            throw new SensorException.ValidationException("placeId is required for sensor telemetry when sensor is not installed");
-        }
-        return placeIdFromRequest;
-    }
-
-    private void validateAndApplyHeartbeatPlaceId(SensorDevice sensorDevice, Long placeIdFromRequest) {
-        if (placeIdFromRequest == null) {
-            return;
-        }
-
-        if (sensorDevice.getPlaceId() == null) {
-            sensorDevice.setPlaceId(placeIdFromRequest);
-            return;
-        }
-
-        if (!sensorDevice.getPlaceId().equals(placeIdFromRequest)) {
-            throw new SensorException.ValidationException(
-                    "Heartbeat placeId mismatch. installedPlaceId=" + sensorDevice.getPlaceId() + ", requestPlaceId=" + placeIdFromRequest
-            );
-        }
-    }
-
-    private String resolveGatewayId(String gatewayId) {
-        if (gatewayId == null || gatewayId.isBlank()) {
-            return "unknown-gateway";
-        }
-        return gatewayId;
-    }
-
-    private String buildAutoMacAddress(String sensorId) {
-        long positiveHash = Integer.toUnsignedLong(sensorId.hashCode());
-        return String.format("AUTO-%014d", positiveHash);
     }
 
     private boolean shouldSaveBatchDeadLetter(Exception ex) {

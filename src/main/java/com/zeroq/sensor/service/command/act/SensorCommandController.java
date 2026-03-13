@@ -35,7 +35,7 @@ public class SensorCommandController {
             @RequestParam(defaultValue = "false") boolean markAsSent,
             HttpServletRequest httpServletRequest
     ) {
-        sensorRoleGuard.requireManagerOrAdmin(httpServletRequest);
+        sensorRoleGuard.requireGatewayOrManagerOrAdmin(httpServletRequest);
         return ResponseDataDTO.of(sensorCommandService.getPendingCommands(sensorId, markAsSent), "센서 명령 조회 완료");
     }
 
@@ -45,7 +45,7 @@ public class SensorCommandController {
             @Valid @RequestBody AckSensorCommandRequest request,
             HttpServletRequest httpServletRequest
     ) {
-        sensorRoleGuard.requireManagerOrAdmin(httpServletRequest);
+        sensorRoleGuard.requireGatewayOrManagerOrAdmin(httpServletRequest);
         return ResponseDataDTO.of(sensorCommandService.acknowledgeCommand(commandId, request), "센서 명령 ACK 처리 완료");
     }
 

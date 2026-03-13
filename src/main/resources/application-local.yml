@@ -6,7 +6,7 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: ${SENSOR_DB_URL:jdbc:mysql://localhost:3306/ZEROQ_SENSOR?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true}
+    url: ${SENSOR_DB_URL:jdbc:mysql://kimd0.iptime.org:23306/ZEROQ_SENSOR?zeroDateTimeBehavior=convertToNull&useLegacyDatetimeCode=false&serverTimezone=Asia/Seoul&noAccessToProcedureBodies=true&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${SENSOR_DB_USERNAME:root}
     password: ${SENSOR_DB_PASSWORD:1234}
     driver-class-name: com.mysql.cj.jdbc.Driver

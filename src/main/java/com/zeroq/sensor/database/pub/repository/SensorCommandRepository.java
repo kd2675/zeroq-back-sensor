@@ -8,7 +8,7 @@ import java.util.Collection;
 import java.util.List;
 
 public interface SensorCommandRepository extends JpaRepository<SensorCommand, Long> {
-    List<SensorCommand> findAllBySensorDeviceSensorIdAndStatusInOrderByRequestedAtAsc(
+    List<SensorCommand> findAllBySensorIdAndStatusInOrderByRequestedAtAsc(
             String sensorId,
             Collection<SensorCommandStatus> statuses
     );

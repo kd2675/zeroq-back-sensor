@@ -12,9 +12,10 @@ import java.time.LocalDateTime;
 public class RecentTelemetryResponse {
     private Long telemetryId;
     private String sensorId;
-    private Long placeId;
-    private double distanceCm;
+    private Double distanceCm;
     private boolean occupied;
+    private Integer padLeftValue;
+    private Integer padRightValue;
     private TelemetryQualityStatus qualityStatus;
     private LocalDateTime measuredAt;
     private LocalDateTime receivedAt;
@@ -24,10 +25,11 @@ public class RecentTelemetryResponse {
     public static RecentTelemetryResponse from(SensorTelemetry telemetry) {
         return RecentTelemetryResponse.builder()
                 .telemetryId(telemetry.getId())
-                .sensorId(telemetry.getSensorDevice().getSensorId())
-                .placeId(telemetry.getPlaceId())
+                .sensorId(telemetry.getSensorId())
                 .distanceCm(telemetry.getDistanceCm())
                 .occupied(telemetry.isOccupied())
+                .padLeftValue(telemetry.getPadLeftValue())
+                .padRightValue(telemetry.getPadRightValue())
                 .qualityStatus(telemetry.getQualityStatus())
                 .measuredAt(telemetry.getMeasuredAt())
                 .receivedAt(telemetry.getReceivedAt())
