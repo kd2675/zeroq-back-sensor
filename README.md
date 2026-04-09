@@ -60,6 +60,12 @@ ZeroQ 센서 수집 및 제어 서버입니다. HTTP와 MQTT를 통해 `sensorId
 - 로그 설정: `src/main/resources/logback-spring.xml`
 - 로그 경로: local/test `./logs`, dev `/data/logs/dev/zeroq_back_sensor`, prod `/data/logs/prod/zeroq_back_sensor`
 
+## Related Docs
+
+- `AGENTS.md`
+- `AGENTS_ZEROQ_SEAT_SENSOR_HARDWARE.md`
+- `examples/zeroq-seat-sensor-xiao/README.md`
+
 ## 참고
 
 - 운영 API는 `MANAGER`/`ADMIN` 권한 전제를 둡니다.
