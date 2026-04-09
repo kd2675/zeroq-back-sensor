@@ -1,43 +1,46 @@
 package com.zeroq.sensor.common.exception;
 
-import lombok.Getter;
+import web.common.core.response.base.exception.GeneralException;
+import web.common.core.response.base.vo.Code;
 
-@Getter
-public class SensorException extends RuntimeException {
-    private final String code;
-    private final int status;
+public class SensorException extends GeneralException {
 
-    public SensorException(String code, String message, int status) {
-        super(message);
-        this.code = code;
-        this.status = status;
+    public SensorException(Code errorCode, String message) {
+        super(errorCode, message);
+    }
+
+    public Integer getCode() {
+        return getErrorCode().getCode();
+    }
+
+    public int getStatus() {
+        return getErrorCode().getHttpStatus().value();
     }
 
     public static class ResourceNotFoundException extends SensorException {
         public ResourceNotFoundException(String resourceName, String fieldName, Object fieldValue) {
             super(
-                    "RESOURCE_NOT_FOUND",
-                    String.format("%s not found with %s: '%s'", resourceName, fieldName, fieldValue),
-                    404
+                    Code.NOT_FOUND,
+                    String.format("%s not found with %s: '%s'", resourceName, fieldName, fieldValue)
             );
         }
     }
 
     public static class ValidationException extends SensorException {
         public ValidationException(String message) {
-            super("VALIDATION_ERROR", message, 400);
+            super(Code.VALIDATION_ERROR, message);
         }
     }
 
     public static class ConflictException extends SensorException {
         public ConflictException(String message) {
-            super("CONFLICT", message, 409);
+            super(Code.CONFLICT, message);
         }
     }
 
     public static class ForbiddenException extends SensorException {
         public ForbiddenException(String message) {
-            super("FORBIDDEN", message, 403);
+            super(Code.FORBIDDEN, message);
         }
     }
 }
